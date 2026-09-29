@@ -18,10 +18,36 @@ pub enum OutputFormat {
 }
 
 fn yt_dlp_path() -> PathBuf {
+    let filename = if cfg!(target_os = "windows") {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
+
+    // Look in PATH for yt-dlp
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join(filename);
+
+            if candidate.is_file() {
+                return candidate;
+            }
+        }
+    }
+
+    // Fallback: Look in the same folder for yt-dlp as the executable
+    let exe_path = std::env::current_exe().expect("couldn't find own exe path");
+
+    let exe_dir = exe_path.parent().expect("exe has no parent directory");
+
+    exe_dir.join(filename)
+}
+
+/* fn yt_dlp_path() -> PathBuf {
     let exe_path = std::env::current_exe().expect("couldn't find own exe path");
     let exe_dir = exe_path.parent().expect("exe has no parent directory");
     exe_dir.join("yt-dlp.exe")
-}
+} */
 
 fn build_args(url: &str, format: OutputFormat, playlist: bool) -> Vec<String> {
     let mut args = Vec::new();
@@ -55,7 +81,6 @@ fn parse_progress(line: &str) -> Option<f32> {
 
     for token in line.split_whitespace() {
         if let Some(percent_str) = token.strip_suffix('%') {
-
             return percent_str.parse::<f32>().ok();
         }
     }
@@ -104,10 +129,7 @@ pub fn start(url: String, format: OutputFormat, playlist: bool, tx: Sender<Downl
                 let _ = tx.send(DownloadMsg::Done);
             }
             Ok(status) => {
-                let _ = tx.send(DownloadMsg::Error(format!(
-                    "yt-dlp exited with {}",
-                    status
-                )));
+                let _ = tx.send(DownloadMsg::Error(format!("yt-dlp exited with {}", status)));
             }
             Err(e) => {
                 let _ = tx.send(DownloadMsg::Error(format!("wait() failed: {}", e)));
