@@ -49,8 +49,19 @@ fn yt_dlp_path() -> PathBuf {
     exe_dir.join("yt-dlp.exe")
 } */
 
-fn build_args(url: &str, format: OutputFormat, playlist: bool) -> Vec<String> {
+fn build_args(
+    url: &str,
+    format: OutputFormat,
+    playlist: bool,
+    output_dir: &Option<PathBuf>,
+) -> Vec<String> {
     let mut args = Vec::new();
+
+    if let Some(dir) = output_dir {
+        let template = dir.join("%(title)s.%(ext)s");
+        args.push("-o".to_string());
+        args.push(template.to_string_lossy().to_string());
+    }
 
     match format {
         OutputFormat::AudioMp3 => {
@@ -88,10 +99,16 @@ fn parse_progress(line: &str) -> Option<f32> {
     None
 }
 
-pub fn start(url: String, format: OutputFormat, playlist: bool, tx: Sender<DownloadMsg>) {
+pub fn start(
+    url: String,
+    format: OutputFormat,
+    playlist: bool,
+    output_dir: Option<PathBuf>,
+    tx: Sender<DownloadMsg>,
+) {
     thread::spawn(move || {
         let ytdlp = yt_dlp_path();
-        let args = build_args(&url, format, playlist);
+        let args = build_args(&url, format, playlist, &output_dir);
 
         let child = Command::new(&ytdlp)
             .args(&args)

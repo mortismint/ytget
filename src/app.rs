@@ -1,15 +1,18 @@
+use crate::config;
 use crate::downloader::{self, DownloadMsg, OutputFormat};
 use eframe::egui;
-use std::sync::mpsc::{channel, Receiver};
+use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, channel};
 
 pub struct YtGetApp {
     url: String,
     format: OutputFormat,
     playlist: bool,
     status: String,
-    progress: f32, 
+    progress: f32,
     downloading: bool,
     rx: Option<Receiver<DownloadMsg>>,
+    output_dir: Option<PathBuf>,
 }
 
 impl Default for YtGetApp {
@@ -22,6 +25,7 @@ impl Default for YtGetApp {
             progress: 0.0,
             downloading: false,
             rx: None,
+            output_dir: config::load_output_dir(),
         }
     }
 }
@@ -34,7 +38,13 @@ impl YtGetApp {
         self.progress = 0.0;
         self.status = "Starting...".to_string();
 
-        downloader::start(self.url.clone(), self.format, self.playlist, tx);
+        downloader::start(
+            self.url.clone(),
+            self.format,
+            self.playlist,
+            self.output_dir.clone(),
+            tx,
+        );
     }
 
     fn poll_messages(&mut self) {
@@ -87,6 +97,23 @@ impl eframe::App for YtGetApp {
             ui.checkbox(&mut self.playlist, "Download full playlist");
 
             ui.add_space(6.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Save to:");
+
+                let display_text = match self.output_dir.as_deref() {
+                    Some(path) => path.display().to_string(),
+                    None => "(default folder)".to_string(),
+                };
+                ui.label(display_text);
+
+                if ui.button("Browse...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        config::save_output_dir(&path);
+                        self.output_dir = Some(path);
+                    }
+                }
+            });
 
             ui.add_enabled_ui(!self.downloading, |ui| {
                 if ui.button("Download").clicked() {
