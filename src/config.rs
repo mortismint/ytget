@@ -5,7 +5,7 @@ fn config_file_path() -> PathBuf {
     let exe_dir = exe_path
         .parent()
         .expect("Failed to get executable directory");
-    exe_dir.join("yetget_config.txt")
+    exe_dir.join("ytget_config.txt")
 }
 
 pub fn load_output_dir() -> Option<PathBuf> {

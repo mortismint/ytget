@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod downloader;
+mod theme;
 
 use app::YtGetApp;
 
@@ -9,6 +10,9 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "ytget",
         options,
-        Box::new(|_cc| Ok(Box::new(YtGetApp::default()))),
+        Box::new(|cc| {
+            theme::apply_theme(&cc.egui_ctx);
+            Ok(Box::new(YtGetApp::default()))
+        }),
     )
 }

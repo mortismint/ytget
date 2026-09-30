@@ -72,9 +72,9 @@ fn build_args(
     }
 
     match format {
-        OutputFormat::Original => {
-        }
+        OutputFormat::Original => {}
         OutputFormat::VideoWebm => {
+            args.push("-f".to_string());
             args.push("bestvideo[ext=webm]+bestaudio[ext=webm]".to_string());
         }
         OutputFormat::VideoMp4 => {
