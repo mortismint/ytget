@@ -3,7 +3,6 @@ mod config;
 mod downloader;
 
 use app::YtGetApp;
-use eframe::egui;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions::default();

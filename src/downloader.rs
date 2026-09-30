@@ -13,8 +13,16 @@ pub enum DownloadMsg {
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum OutputFormat {
-    Video,
+    Original,
+
+    VideoWebm,
+    VideoMp4,
+
     AudioMp3,
+    AudioM4a,
+    AudioFlac,
+    AudioWav,
+    AudioOpus,
 }
 
 fn yt_dlp_path() -> PathBuf {
@@ -64,14 +72,39 @@ fn build_args(
     }
 
     match format {
+        OutputFormat::Original => {
+        }
+        OutputFormat::VideoWebm => {
+            args.push("bestvideo[ext=webm]+bestaudio[ext=webm]".to_string());
+        }
+        OutputFormat::VideoMp4 => {
+            args.push("-t".to_string());
+            args.push("mp4".to_string());
+        }
         OutputFormat::AudioMp3 => {
             args.push("-x".to_string());
             args.push("--audio-format".to_string());
             args.push("mp3".to_string());
         }
-        OutputFormat::Video => {
-            args.push("--recode-video".to_string());
-            args.push("mp4".to_string());
+        OutputFormat::AudioM4a => {
+            args.push("-x".to_string());
+            args.push("--audio-format".to_string());
+            args.push("m4a".to_string());
+        }
+        OutputFormat::AudioFlac => {
+            args.push("-x".to_string());
+            args.push("--audio-format".to_string());
+            args.push("flac".to_string());
+        }
+        OutputFormat::AudioWav => {
+            args.push("-x".to_string());
+            args.push("--audio-format".to_string());
+            args.push("wav".to_string());
+        }
+        OutputFormat::AudioOpus => {
+            args.push("-x".to_string());
+            args.push("--audio-format".to_string());
+            args.push("opus".to_string());
         }
     }
 

@@ -19,7 +19,7 @@ impl Default for YtGetApp {
     fn default() -> Self {
         Self {
             url: String::new(),
-            format: OutputFormat::Video,
+            format: OutputFormat::Original,
             playlist: false,
             status: String::new(),
             progress: 0.0,
@@ -38,8 +38,22 @@ impl YtGetApp {
         self.progress = 0.0;
         self.status = "Starting...".to_string();
 
+        let input = self.url.trim().to_string();
+
+        if input.is_empty() {
+            self.status = "Please enter a URL or search term.".to_string();
+            self.downloading = false;
+            return;
+        }
+
+        let source = if input.starts_with("http://") || input.starts_with("https://") {
+            input
+        } else {
+            format!("ytsearch:{}", input)
+        };
+
         downloader::start(
-            self.url.clone(),
+            source,
             self.format,
             self.playlist,
             self.output_dir.clone(),
@@ -84,14 +98,33 @@ impl eframe::App for YtGetApp {
             ui.separator();
 
             ui.horizontal(|ui| {
-                ui.label("URL:");
+                ui.label("URL or search:");
                 ui.text_edit_singleline(&mut self.url);
             });
 
             ui.horizontal(|ui| {
                 ui.label("Format:");
-                ui.radio_value(&mut self.format, OutputFormat::Video, "Video (mp4)");
-                ui.radio_value(&mut self.format, OutputFormat::AudioMp3, "Audio (mp3)");
+                egui::ComboBox::from_id_source("format_selector")
+                    .selected_text(match self.format {
+                        OutputFormat::Original => "Original",
+                        OutputFormat::VideoWebm => "Video (webm)",
+                        OutputFormat::VideoMp4 => "Video (mp4)",
+                        OutputFormat::AudioMp3 => "Audio (mp3)",
+                        OutputFormat::AudioM4a => "Audio (m4a)",
+                        OutputFormat::AudioFlac => "Audio (flac)",
+                        OutputFormat::AudioWav => "Audio (wav)",
+                        OutputFormat::AudioOpus => "Audio (opus)",
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.radio_value(&mut self.format, OutputFormat::Original, "Original");
+                        ui.radio_value(&mut self.format, OutputFormat::VideoWebm, "Video (webm)");
+                        ui.radio_value(&mut self.format, OutputFormat::VideoMp4, "Video (mp4)");
+                        ui.radio_value(&mut self.format, OutputFormat::AudioMp3, "Audio (mp3)");
+                        ui.radio_value(&mut self.format, OutputFormat::AudioM4a, "Audio (m4a)");
+                        ui.radio_value(&mut self.format, OutputFormat::AudioFlac, "Audio (flac)");
+                        ui.radio_value(&mut self.format, OutputFormat::AudioWav, "Audio (wav)");
+                        ui.radio_value(&mut self.format, OutputFormat::AudioOpus, "Audio (opus)");
+                    });
             });
 
             ui.checkbox(&mut self.playlist, "Download full playlist");
