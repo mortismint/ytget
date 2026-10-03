@@ -10,7 +10,7 @@ pub fn apply_theme(ctx: &egui::Context) {
 
     let accent = Color32::from_rgb(94, 129, 244);
     visuals.selection.bg_fill = accent;
-    visuals.selection.stroke = Stroke::new(1.0, accent);
+    visuals.selection.stroke = Stroke::new(1.0_f32, accent);
 
     visuals.panel_fill = Color32::from_rgb(24, 24, 28);
     visuals.window_fill = Color32::from_rgb(24, 24, 28);
