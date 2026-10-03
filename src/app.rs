@@ -13,6 +13,11 @@ pub struct YtGetApp {
     downloading: bool,
     rx: Option<Receiver<DownloadMsg>>,
     output_dir: Option<PathBuf>,
+    suggestions: Vec<String>,
+    search_rx: Option<Receiver<Vec<String>>>,
+    last_input: String,
+    last_requested_query: String,
+    last_input_change: std::time::Instant,
 }
 
 impl Default for YtGetApp {
@@ -26,6 +31,11 @@ impl Default for YtGetApp {
             downloading: false,
             rx: None,
             output_dir: config::load_output_dir(),
+            suggestions: Vec::new(),
+            search_rx: None,
+            last_input: String::new(),
+            last_requested_query: String::new(),
+            last_input_change: std::time::Instant::now(),
         }
     }
 }
@@ -85,12 +95,105 @@ impl YtGetApp {
             }
         }
     }
+
+    fn poll_suggestions(&mut self) {
+        let Some(rx) = &self.search_rx else {
+            return;
+        };
+
+        while let Ok(suggestions) = rx.try_recv() {
+            self.suggestions = suggestions;
+        }
+    }
+
+    fn update_suggestions(&mut self) {
+        let query = self.url.trim().to_string();
+        let is_url = query.starts_with("http") || query.starts_with("https");
+
+        // In case of empty input dont show anything
+        if query.is_empty() || is_url {
+            self.suggestions.clear();
+            self.search_rx = None;
+            self.last_input.clear();
+            self.last_requested_query.clear();
+            return;
+        }
+
+        // Detect input
+        if query != self.last_input {
+            self.last_input = query.clone();
+            self.last_input_change = std::time::Instant::now();
+            self.suggestions.clear();
+        }
+
+        // Wait 300 ms after the last input change before requesting suggestions
+        if self.last_input_change.elapsed().as_millis() < 300 {
+            return;
+        }
+
+        // Dont request the exact same query twice
+        if query == self.last_requested_query {
+            return;
+        }
+
+        self.last_requested_query = query.clone();
+
+        let (tx, rx) = channel();
+        self.search_rx = Some(rx);
+
+        std::thread::spawn(move || {
+            let client = match reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_millis(500))
+                .build()
+            {
+                Ok(client) => client,
+                Err(e) => {
+                    eprintln!("Failed to create client: {}", e);
+                    return;
+                }
+            };
+
+            let response = client
+                .get("https://suggestqueries.google.com/complete/search")
+                .query(&[
+                    ("client", "firefox"),
+                    ("ds", "yt"),
+                    ("q", query.as_str()),
+                    ("hl", "en"),
+                ])
+                .send();
+
+            let Ok(response) = response else {
+                return;
+            };
+
+            let Ok(text) = response.text() else {
+                return;
+            };
+
+            let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) else {
+                return;
+            };
+
+            let Some(items) = data.get(1).and_then(|v| v.as_array()) else {
+                return;
+            };
+
+            let suggestions = items
+                .iter()
+                .filter_map(|item| item.as_str().map(String::from))
+                .take(8)
+                .collect::<Vec<_>>();
+
+            let _ = tx.send(suggestions);
+        });
+    }
 }
 
 impl eframe::App for YtGetApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll_messages();
-
+        self.poll_suggestions();
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 let width = 480.0_f32.min(ui.available_width());
@@ -131,10 +234,37 @@ impl eframe::App for YtGetApp {
                         card(ui, &mut |ui| {
                             ui.horizontal(|ui| {
                                 field_label(ui, "URL or search:");
-                                ui.add(
+                                let response = ui.add(
                                     egui::TextEdit::singleline(&mut self.url)
                                         .desired_width(ui.available_width()),
                                 );
+
+                                self.update_suggestions();
+
+                                if !self.suggestions.is_empty() {
+                                    let rect = response.rect;
+
+                                    egui::Area::new(egui::Id::new("search_suggestions"))
+                                        .order(egui::Order::Foreground)
+                                        .fixed_pos(egui::pos2(
+                                            rect.left() - 5.0,
+                                            rect.bottom() + 4.0,
+                                        ))
+                                        .show(ctx, |ui| {
+                                            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                                ui.set_width(rect.width());
+
+                                                for suggestion in &self.suggestions {
+                                                    if ui
+                                                        .selectable_label(false, suggestion)
+                                                        .clicked()
+                                                    {
+                                                        self.url = suggestion.to_string();
+                                                    }
+                                                }
+                                            });
+                                        });
+                                }
                             });
                         });
 
